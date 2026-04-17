@@ -105,8 +105,8 @@ export function createMessageHandler(deps: MessageDeps) {
         },
       });
 
-      // Format response
-      let reply = response.content;
+      // Format response — guard against empty content
+      let reply = response.content || "(No response from Claude)";
 
       if (toolUpdates.length > 0) {
         reply += `\n\n_Tools: ${toolUpdates.join(", ")}_`;

@@ -129,7 +129,7 @@ export class ClaudeSDK {
             } else if (event.type === "result") {
               resultText = event.result ?? resultText;
               sessionId = event.session_id ?? null;
-              totalCost = event.cost_usd ?? 0;
+              totalCost = event.total_cost_usd ?? event.cost_usd ?? 0;
             }
           } catch {
             // Not JSON — might be plain text output
