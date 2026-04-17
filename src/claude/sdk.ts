@@ -19,10 +19,9 @@ export interface StreamUpdate {
 }
 
 /**
- * Claude Code SDK integration via subprocess.
- *
- * Spawns `claude` CLI in JSON streaming mode and parses events.
- * This is the official way to integrate with Claude Code programmatically.
+ * Claude Code SDK — spawns `claude --print` per message with `--resume`
+ * for session continuity. Each invocation picks up the full conversation
+ * history from Claude's internal session store.
  */
 export class ClaudeSDK {
   constructor(
@@ -54,22 +53,25 @@ export class ClaudeSDK {
         "--dangerously-skip-permissions",
       ];
 
-      // Only pass --model if explicitly set (not "default")
+      // Only pass --model if explicitly set
       if (this.model && this.model !== "default") {
         args.push("--model", this.model);
       }
 
-      // SECURITY: Validate session ID format before passing to CLI
+      // Resume existing session for conversation continuity
       if (options.sessionId && isValidSessionId(options.sessionId)) {
         args.push("--resume", options.sessionId);
       }
 
-      // SECURITY: Truncate system prompt to prevent ARG_MAX overflow
+      // System prompt via --system-prompt flag
       if (options.systemPrompt) {
-        args.push("--system-prompt", truncateSystemPrompt(options.systemPrompt));
+        const truncated = truncateSystemPrompt(options.systemPrompt);
+        args.push("--system-prompt", truncated);
       }
 
       args.push("--", prompt);
+
+      log.debug({ cwd: workingDirectory, hasResume: !!options.sessionId }, "Spawning claude");
 
       const proc = Bun.spawn(["claude", ...args], {
         cwd: workingDirectory,
@@ -120,40 +122,28 @@ export class ClaudeSDK {
               totalCost = event.total_cost_usd ?? event.cost_usd ?? 0;
             }
           } catch {
-            // Not JSON — might be plain text output
-            if (line.trim()) {
-              resultText += line;
-            }
+            // Non-JSON line — ignore (hook output, etc.)
           }
         }
       }
 
       const exitCode = await proc.exited;
 
-      if (exitCode !== 0) {
+      if (exitCode !== 0 && !resultText) {
         const stderr = await new Response(proc.stderr).text();
         log.warn({ exitCode, stderr: stderr.slice(0, 500) }, "Claude exited with error");
-        if (!resultText) {
-          resultText = stderr || `Claude exited with code ${exitCode}`;
-        }
+        resultText = stderr || `Claude exited with code ${exitCode}`;
       }
 
-      // Clean CLI statusline setup noise from final text only
-      const cleanedText = resultText
-        .replace(/STATUSLINE SETUP NEEDED:[^\n]*/gi, "")
-        .replace(/Statusline badge not set\.[^\n]*/g, "")
-        .replace(/Want me add\? Path:[^\n]*/g, "")
-        .replace(/Proactively offer to set this up[^\n]*/g, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+      log.debug({ sessionId, cost: totalCost, tools: toolsUsed.length, ms: Date.now() - startTime }, "Claude response");
 
       return {
-        content: cleanedText || resultText,
+        content: resultText,
         sessionId,
         cost: totalCost,
         toolsUsed: [...new Set(toolsUsed)],
         durationMs: Date.now() - startTime,
-        isError: exitCode !== 0,
+        isError: exitCode !== 0 && !resultText,
       };
     } catch (error) {
       const message =

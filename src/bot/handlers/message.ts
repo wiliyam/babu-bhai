@@ -74,11 +74,6 @@ export function createMessageHandler(deps: MessageDeps) {
       // Build system prompt with memory context (capped for safety)
       let prompt = deps.systemPrompt;
 
-      // Inject Caveman mode instructions
-      if (deps.cavemanMode !== "off") {
-        prompt += `\n\n---\n\n${getCavemanPrompt(deps.cavemanMode)}`;
-      }
-
       if (deps.memory) {
         const memoryContent = deps.memory.loadMemoryFile(userId);
         const dailyNote = deps.memory.getDailyNote(userId);

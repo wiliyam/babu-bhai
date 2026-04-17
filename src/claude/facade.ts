@@ -29,25 +29,41 @@ export class ClaudeIntegration {
         userId,
         sessionId: session.id,
         isNew: session.isNew,
-        hasClaudeSession: !!session.claudeSessionId,
+        claudeSessionId: session.claudeSessionId ?? "none",
       },
       "Running command",
     );
 
-    // Execute via SDK
-    const response = await this.sdk.execute(prompt, projectPath, {
+    // Execute via SDK with session resume
+    let response = await this.sdk.execute(prompt, projectPath, {
       sessionId: session.claudeSessionId ?? undefined,
       systemPrompt: options.systemPrompt,
       onStream: options.onStream,
     });
 
-    // Assign Claude session ID if new
-    if (response.sessionId && !session.claudeSessionId) {
-      this.sessions.assignClaudeSession(session.id, response.sessionId);
-    }
+    // If resume failed (empty response or error), retry without resume
+    if (session.claudeSessionId && (response.isError || !response.content)) {
+      log.warn({ claudeSessionId: session.claudeSessionId }, "Session resume failed, starting fresh");
+      this.sessions.resetSession(userId, projectPath);
+      const freshSession = await this.sessions.getOrCreate(userId, projectPath);
 
-    // Record turn
-    this.sessions.recordTurn(session.id, response.cost);
+      response = await this.sdk.execute(prompt, projectPath, {
+        systemPrompt: options.systemPrompt,
+        onStream: options.onStream,
+      });
+
+      // Store new session ID
+      if (response.sessionId) {
+        this.sessions.assignClaudeSession(freshSession.id, response.sessionId);
+      }
+      this.sessions.recordTurn(freshSession.id, response.cost);
+    } else {
+      // Store/update session ID
+      if (response.sessionId && response.sessionId !== session.claudeSessionId) {
+        this.sessions.assignClaudeSession(session.id, response.sessionId);
+      }
+      this.sessions.recordTurn(session.id, response.cost);
+    }
 
     // Store messages
     this.messages.create({
