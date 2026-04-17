@@ -98,18 +98,6 @@ export class ClaudeSDK {
         for (const line of lines) {
           if (!line.trim()) continue;
 
-          // Filter out Claude CLI onboarding/statusline noise
-          if (
-            line.includes("Statusline") ||
-            line.includes("statusline") ||
-            line.includes("add statusline") ||
-            line.includes("hasCompletedOnboarding") ||
-            line.includes("Ugg.") ||
-            line.includes("approve write prompt")
-          ) {
-            continue;
-          }
-
           try {
             const event = JSON.parse(line);
 
@@ -150,11 +138,13 @@ export class ClaudeSDK {
         }
       }
 
-      // Clean CLI onboarding/statusline noise from output
+      // Clean CLI statusline setup noise from final text only
       const cleanedText = resultText
-        .replace(/Ugg\..*?approve write prompt\./gs, "")
-        .replace(/Statusline still not wired[^\n]*/g, "")
-        .replace(/Say "add statusline"[^\n]*/g, "")
+        .replace(/STATUSLINE SETUP NEEDED:[^\n]*/gi, "")
+        .replace(/Statusline badge not set\.[^\n]*/g, "")
+        .replace(/Want me add\? Path:[^\n]*/g, "")
+        .replace(/Proactively offer to set this up[^\n]*/g, "")
+        .replace(/\n{3,}/g, "\n\n")
         .trim();
 
       return {
