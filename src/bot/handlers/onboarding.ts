@@ -103,9 +103,9 @@ export interface OnboardingDeps {
   identityLoader: IdentityLoader;
 }
 
-export function isNewUser(deps: OnboardingDeps, userId: number): boolean {
-  const user = deps.users.findById(userId);
-  return !user;
+export function isNewUser(deps: OnboardingDeps, _userId: number): boolean {
+  // Check if SOUL.md exists — survives DB resets and deploys
+  return !deps.identityLoader.hasSoul();
 }
 
 export function isInOnboarding(userId: number): boolean {
