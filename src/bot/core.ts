@@ -12,6 +12,7 @@ import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { type CommandDeps, registerCommands } from "./handlers/command.js";
 import { type MessageDeps, createMessageHandler } from "./handlers/message.js";
 import { type VoiceDeps, createVoiceHandler } from "./handlers/voice.js";
+import { type FileDeps, createFileHandler } from "./handlers/file.js";
 import {
   type OnboardingDeps,
   createOnboardingHandlers,
@@ -99,6 +100,22 @@ export function createBot(deps: BotDeps): Bot {
     bot.on("message:audio", voiceHandler);
     log.info("Voice handler registered");
   }
+
+  // File upload handler (documents, photos, videos)
+  const fileDeps: FileDeps = {
+    claude: deps.claude,
+    memory: deps.memory,
+    users: deps.users,
+    audit: deps.audit,
+    approvedDirectory: deps.settings.approvedDirectory,
+    systemPrompt: deps.systemPrompt,
+  };
+  const fileHandler = createFileHandler(fileDeps);
+  bot.on("message:document", fileHandler);
+  bot.on("message:photo", fileHandler);
+  bot.on("message:video", fileHandler);
+  bot.on("message:sticker", fileHandler);
+  log.info("File upload handler registered");
 
   // Text message handler
   const messageDeps: MessageDeps = {
