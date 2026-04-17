@@ -1,8 +1,8 @@
 # Babu Bhai
 
-**Open-source AI agent gateway for Telegram.** Control Claude Code from your phone — with persistent memory, bot identity, and scheduled tasks.
+**Open-source AI agent gateway for Telegram.** Control Claude Code from your phone — with persistent memory, bot identity, and conversation continuity.
 
-Built with **Bun + TypeScript**. Zero Python. Zero bloat. Secure by default.
+Built with **Bun + TypeScript**. Inspired by OpenClaw. Secure by default.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](tsconfig.json)
@@ -12,11 +12,13 @@ Built with **Bun + TypeScript**. Zero Python. Zero bloat. Secure by default.
 
 ## Why Babu Bhai?
 
+Most Claude Code Telegram wrappers are either broken, Python-based, or have no identity system. Babu Bhai takes the best ideas from OpenClaw and rebuilds them in TypeScript/Bun:
+
 | vs | Advantage |
 |---|---|
-| **OpenClaw** | Pure TS/Bun (not Node.js), built-in memory, no grammy crashes |
+| **OpenClaw** | Pure TS/Bun, simpler setup, no grammy dependency crashes |
 | **claude-code-telegram** | Not Python — 3x faster startup, native SQLite, typed end-to-end |
-| **Claude Code Channels** | No `channelsEnabled` org policy restriction, works on any plan |
+| **Claude Code Channels** | No `channelsEnabled` org policy restriction, works on Claude Max |
 
 ---
 
@@ -25,16 +27,15 @@ Built with **Bun + TypeScript**. Zero Python. Zero bloat. Secure by default.
 | Feature | Description |
 |---|---|
 | **Full Claude Code Access** | Read, write, edit files, run bash, git — all from Telegram |
-| **Interactive Setup** | `bun setup` — wizard asks for everything, no manual .env editing |
-| **Session Persistence** | Auto-resumes conversations across restarts (Bun SQLite) |
-| **Bot Identity** | SOUL.md + IDENTITY.md personality system (OpenClaw-style) |
-| **Persistent Memory** | Per-user memories — facts, preferences, decisions |
-| **Memory Search** | `/memory deploy key` — keyword search across stored memories |
-| **Caveman Mode** | 60-75% output token reduction — built in, configurable |
+| **OpenClaw-Style Identity** | SOUL.md personality system — bot knows who it is, never says "I'm Claude" |
+| **First-Chat Onboarding** | New users pick a personality (Jarvis, Sherlock, Gandalf, etc.) via inline buttons |
+| **Session Continuity** | Auto-resumes Claude sessions with `--resume` for multi-turn conversations |
+| **Conversation Memory** | Recent messages injected as context when sessions expire |
+| **Persistent Memory** | Per-user `/remember` and `/memory` with SQLite + Markdown storage |
+| **Interactive Setup** | `bun setup` wizard — no manual `.env` editing |
 | **Secure by Default** | User whitelist required, input sanitization, prompt injection prevention |
-| **Rate Limiting** | Token bucket per user + global concurrent request cap |
+| **Rate Limiting** | Token bucket per user + global concurrent request cap (5 max) |
 | **Typing Indicator** | Shows "typing..." while Claude works |
-| **Auto-Memory** | Extracts "remember that..." patterns from conversations |
 
 ---
 
@@ -46,43 +47,27 @@ Built with **Bun + TypeScript**. Zero Python. Zero bloat. Secure by default.
 - [Claude Code](https://claude.ai/code) installed and logged in (`claude login`)
 - Telegram account
 
-### Install and Setup
+### Install
 
 ```bash
 git clone https://github.com/wiliyam/babu-bhai.git
 cd babu-bhai
 bun install
+```
+
+### Option A: Interactive Setup (Recommended)
+
+```bash
 bun setup
 ```
 
-The setup wizard walks you through everything:
+The wizard asks for everything — bot token, user ID, project directory, model, personality.
 
-```
-╔══════════════════════════════════════╗
-║       🤖 Babu Bhai Setup Wizard      ║
-╚══════════════════════════════════════╝
+### Option B: Manual Setup
 
-── Step 1: Telegram Bot ──
-Paste your Telegram bot token: ***
-Bot username (without @): MyBot
-
-── Step 2: Your Telegram ID ──
-Your Telegram user ID(s): 123456789
-
-── Step 3: Project Directory ──
-Approved directory path [/home]: /home/user/projects
-
-── Step 4: Claude Model ──
-Claude model [claude-sonnet-4-6]:
-
-── Step 5: Token Savings (Caveman) ──
-Default caveman mode [full]:
-
-── Step 6: Bot Personality ──
-Bot display name [Babu Bhai]:
-Use default personality? (y/n) [y]:
-
-✅ Setup Complete!
+```bash
+cp .env.example .env
+# Edit .env with your values
 ```
 
 ### Run
@@ -93,57 +78,101 @@ bun start
 
 Then message your bot on Telegram!
 
+### First Message
+
+When you message the bot for the first time, it runs onboarding:
+
+1. Asks your name
+2. Shows personality presets via inline buttons:
+   - **Jarvis** (Iron Man) — Witty, polished AI butler
+   - **Sherlock Holmes** — Deductive, blunt analysis
+   - **Gandalf** — Wise, guides rather than dictates
+   - **Tony Stark** — Sarcastic, builds fast
+   - **Wednesday Addams** — Deadpan, brutally honest
+   - **Morgan Freeman** — Calm narrator
+   - **Master Yoda** — Inverted speech, teaches through questions
+   - **Custom** — Write your own personality
+3. Saves `SOUL.md` and starts working
+
+Change personality anytime with `/personality`.
+
 ---
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `/start` | Welcome message |
+| `/start` | Welcome / trigger onboarding |
 | `/new` | Reset session (fresh context) |
-| `/status` | Session info and cost |
+| `/status` | Session info |
 | `/memory [query]` | Search or list stored memories |
 | `/remember <text>` | Save something to memory |
+| `/personality` | Change bot personality |
 | `/help` | All commands |
 
-Any other text message is sent to Claude Code as a prompt.
+**Any other text message** goes to Claude Code as a prompt.
+
+---
+
+## How It Works
+
+```
+You (Telegram)
+  → grammY Bot receives message
+    → Auth middleware (user whitelist check)
+    → Rate limiter (10 req/min per user)
+    → Input validator (length + sanitization)
+    → Message handler
+      → Load identity: Core Identity → SOUL.md → Telegram Rules → CLAUDE.md
+      → Load memory: per-user MEMORY.md + daily notes + recent messages
+      → Spawn: claude --print --resume <sessionId> --system-prompt <identity+memory>
+      → Stream JSON response
+      → Parse result events
+    → Send response back to Telegram
+```
+
+### Identity System (OpenClaw-Style)
+
+The system prompt is assembled in strict order — identity FIRST, project context LAST:
+
+1. **Core Identity** — "You are a personal AI assistant running inside Babu Bhai. You are NOT Claude."
+2. **SOUL.md** — Your chosen personality
+3. **IDENTITY.md** — Name, metadata
+4. **Telegram Rules** — Keep it short, don't narrate, understand follow-ups
+5. **CLAUDE.md** — Project-specific context
+
+This ordering ensures the bot firmly identifies as your named assistant, not raw Claude Code.
+
+### Session Continuity
+
+- **Within a session:** `--resume <sessionId>` gives full conversation history
+- **Across sessions:** Last 10 messages injected into system prompt as context
+- **Persistent memory:** `/remember` saves facts to SQLite + Markdown (survives everything)
 
 ---
 
 ## Bot Identity (SOUL.md)
 
-Give your bot a personality. The setup wizard creates these in `.babu-bhai/`:
+Your bot's personality lives in `.babu-bhai/` inside your project directory:
 
 ```
 .babu-bhai/
   SOUL.md          # Personality, thinking style, rules
   IDENTITY.md      # Name, metadata
+  data.db          # SQLite (sessions, messages, memory, audit)
   memory/
     <userId>/
       MEMORY.md    # Per-user persistent facts
-      2026-04-17.md  # Daily notes
+      2026-04-17.md  # Daily conversation notes
 ```
 
-**Example SOUL.md:**
-
-```markdown
-# Babu Bhai
-
-You are Babu Bhai, a senior full-stack developer.
-You speak concisely and prefer action over discussion.
-You never commit without asking first.
-
-## Rules
-- Always read the file before editing
-- Use conventional commits
-- Run tests after code changes
-```
+Edit `SOUL.md` anytime to change personality. Changes take effect on next message.
 
 ---
 
 ## Memory System
 
-Per-user, persistent, searchable.
+Per-user, persistent, searchable. Sanitized against prompt injection.
 
 | Method | Example |
 |---|---|
@@ -152,26 +181,7 @@ Per-user, persistent, searchable.
 | **Search** | `/memory deploy key` |
 | **List recent** | `/memory` |
 
-Memories are stored in SQLite (searchable) + Markdown files (human-readable). Content is **sanitized** before storage to prevent prompt injection.
-
----
-
-## Caveman Mode (Token Savings)
-
-Built-in [Caveman](https://github.com/juliusbrussee/caveman) integration reduces output tokens by 60-75%.
-
-| Mode | Savings | Style |
-|---|---|---|
-| `off` | 0% | Normal verbose responses |
-| `lite` | ~40% | Concise, proper grammar |
-| `full` | ~65% | Terse fragments, no filler |
-| `ultra` | ~75% | Telegraphic, maximum compression |
-
-Set in `.env` or during `bun setup`:
-
-```env
-CAVEMAN_MODE=full
-```
+Storage: SQLite (searchable) + per-user Markdown files (human-readable).
 
 ---
 
@@ -185,10 +195,9 @@ All settings via environment variables (or `bun setup`):
 | `TELEGRAM_BOT_USERNAME` | **Yes** | — | Without @ |
 | `APPROVED_DIRECTORY` | **Yes** | — | Base directory for file access |
 | `ALLOWED_USERS` | **Yes** | — | Comma-separated Telegram user IDs |
-| `CLAUDE_MODEL` | No | `claude-sonnet-4-6` | Claude model |
+| `CLAUDE_MODEL` | No | `default` | Claude model (or "default" for latest) |
 | `CLAUDE_MAX_TURNS` | No | `10` | Max tool-use turns per message |
 | `CLAUDE_TIMEOUT_SECONDS` | No | `300` | Timeout per message |
-| `CAVEMAN_MODE` | No | `full` | Token savings: off/lite/full/ultra |
 | `ENABLE_MEMORY` | No | `true` | Enable memory system |
 | `LOG_LEVEL` | No | `info` | debug/info/warn/error |
 | `RATE_LIMIT_REQUESTS` | No | `10` | Max messages per minute per user |
@@ -197,32 +206,32 @@ All settings via environment variables (or `bun setup`):
 
 ## Security
 
-Babu Bhai is **secure by default** — no opt-in required.
+Secure by default — no opt-in required.
 
 | Layer | Protection |
 |---|---|
-| **Authentication** | User whitelist required (no open access mode) |
-| **Input validation** | Message length limits, content checks |
-| **Memory sanitization** | Prompt injection prevention in stored memories |
-| **Directory isolation** | Claude Code restricted to approved directory |
+| **Authentication** | User whitelist required — no open access mode |
+| **Input validation** | 2000 char limit, content sanitization |
+| **Memory sanitization** | Prompt injection patterns stripped before storage |
+| **Directory isolation** | Claude restricted to `APPROVED_DIRECTORY` |
 | **Error handling** | Internal errors never leak to Telegram users |
-| **Rate limiting** | 10 req/min per user + 5 max global concurrent |
-| **Session validation** | Session IDs format-checked before CLI passthrough |
+| **Rate limiting** | 10 req/min per user, 5 max global concurrent |
+| **Session validation** | IDs format-checked before passing to CLI |
 | **Audit logging** | All actions logged to SQLite |
 | **System prompt cap** | 50KB max to prevent DoS via memory growth |
 
-See [SECURITY.md](SECURITY.md) for full security policy and vulnerability reporting.
+See [SECURITY.md](SECURITY.md) for full policy and vulnerability reporting.
 
 ---
 
-## Deploy to Server (EC2/VPS)
+## Deploy to Server
 
 ```bash
 # Install Bun
 curl -fsSL https://bun.sh/install | bash
 source ~/.bashrc
 
-# Install Claude Code
+# Install Claude Code and authenticate
 npm install -g @anthropic-ai/claude-code
 claude login
 
@@ -230,7 +239,7 @@ claude login
 git clone https://github.com/wiliyam/babu-bhai.git
 cd babu-bhai
 bun install
-bun setup    # Interactive wizard
+bun setup
 
 # Create systemd service
 sudo tee /etc/systemd/system/babu-bhai.service << 'EOF'
@@ -240,12 +249,12 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=$USER
-WorkingDirectory=/home/$USER/babu-bhai
-ExecStart=/home/$USER/.bun/bin/bun run src/index.ts
+User=ubuntu
+WorkingDirectory=/home/ubuntu/babu-bhai
+ExecStart=/home/ubuntu/.bun/bin/bun run src/index.ts
 Restart=on-failure
 RestartSec=10
-EnvironmentFile=/home/$USER/babu-bhai/.env
+EnvironmentFile=/home/ubuntu/babu-bhai/.env
 
 [Install]
 WantedBy=multi-user.target
@@ -253,74 +262,70 @@ EOF
 
 sudo systemctl enable babu-bhai
 sudo systemctl start babu-bhai
+
+# Check logs
 sudo journalctl -u babu-bhai -f
 ```
 
 ---
 
-## Architecture
-
-```
-Telegram Message
-  → grammY Bot
-    → Auth Middleware (user whitelist)
-    → Rate Limit Middleware (token bucket)
-    → Security Validator (input length + sanitization)
-    → Message Handler
-      → Identity Loader (SOUL.md + IDENTITY.md)
-      → Memory Injection (per-user MEMORY.md + daily notes)
-      → Caveman Prompt (token reduction)
-      → Claude SDK (subprocess stream-json)
-    → Response → Telegram
-```
+## Project Structure
 
 ```
 src/
-  index.ts              # Entry point + setup wizard trigger
-  setup/wizard.ts       # Interactive first-run setup
-  config/               # Zod-validated settings
+  index.ts                  # Entry + auto-setup trigger
+  setup/wizard.ts           # Interactive first-run wizard
+  config/
+    schema.ts               # Zod-validated settings
+    loader.ts               # Env loader
   bot/
-    core.ts             # grammY bot + middleware chain
-    handlers/           # Commands + agentic message handler
-    middleware/          # Auth, rate limiting
+    core.ts                 # grammY bot + middleware chain
+    handlers/
+      command.ts            # /start, /new, /status, /memory, /help
+      message.ts            # Agentic message handler
+      onboarding.ts         # First-chat personality picker
+    middleware/
+      auth.ts               # User whitelist
+      rateLimit.ts          # Token bucket
   claude/
-    sdk.ts              # Claude CLI subprocess (stream-json)
-    session.ts          # Auto-resume persistence
-    facade.ts           # High-level integration
+    sdk.ts                  # Claude CLI subprocess (stream-json)
+    session.ts              # Session persistence + auto-resume
+    facade.ts               # High-level integration + conversation history
   identity/
-    loader.ts           # SOUL.md personality bootstrap
+    loader.ts               # OpenClaw-style prompt assembly
   memory/
-    store.ts            # Per-user MEMORY.md + SQLite search
+    store.ts                # Per-user MEMORY.md + SQLite
   storage/
-    database.ts         # Bun SQLite + migrations
-    models.ts           # TypeScript interfaces
-    repositories.ts     # Data access (parameterized queries)
+    database.ts             # Bun SQLite + migrations
+    models.ts               # TypeScript interfaces
+    repositories.ts         # Data access layer
   events/
-    bus.ts              # Async pub/sub
+    bus.ts                  # Async pub/sub
   notifications/
-    service.ts          # Rate-limited Telegram delivery
+    service.ts              # Rate-limited Telegram delivery
   security/
-    auth.ts             # User whitelist (no open access)
-    validator.ts        # Input sanitization, session ID validation
+    auth.ts                 # Auth manager
+    validator.ts            # Input sanitization, session ID validation
 ```
 
-**Stack:** Bun, TypeScript (strict), grammY, Zod, Bun SQLite, pino, croner
+**Stack:** Bun, TypeScript (strict), grammY, Zod, Bun SQLite, pino, croner, nanoid
 
 ---
 
 ## Roadmap
 
 - [x] Core bot with Claude Code integration
-- [x] Session persistence and auto-resume
-- [x] Bot identity (SOUL.md + IDENTITY.md)
-- [x] Persistent memory (per-user, sanitized)
-- [x] Caveman mode (token reduction)
-- [x] Interactive setup wizard
-- [x] Security hardening (5-layer defense)
+- [x] Session persistence with `--resume` and auto-retry
+- [x] OpenClaw-style identity (SOUL.md + IDENTITY.md, identity-first prompt assembly)
+- [x] First-chat onboarding with personality presets (Jarvis, Sherlock, etc.)
+- [x] Conversation memory (recent messages injected across session boundaries)
+- [x] Persistent per-user memory (`/remember`, `/memory`)
+- [x] Interactive setup wizard (`bun setup`)
+- [x] Security hardening (5-layer defense, 3 CRITICAL + 5 HIGH fixed)
+- [ ] Voice chat (Edge TTS + Groq Whisper — $0/mo)
 - [ ] Scheduled tasks (cron) with session isolation
 - [ ] Skill/plugin system (community extensions)
 - [ ] Webhook support (GitHub, generic)
-- [ ] Voice message transcription
 - [ ] Image/file upload handling
 - [ ] Multi-project support
 - [ ] Web dashboard
@@ -330,25 +335,22 @@ src/
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup
-- Coding standards
-- Pull request process
-- Architecture overview
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ```bash
-# Quick start for contributors
+# Quick start
 git clone https://github.com/YOUR_USERNAME/babu-bhai.git
 cd babu-bhai
 bun install
 bun setup
-bun dev       # Auto-reload on changes
-bun typecheck # Must pass
-bun lint      # Must pass
+bun dev         # Auto-reload on changes
+bun typecheck   # Must pass
+bun lint        # Must pass
 ```
 
 **Commit format:** [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines.
 
 ---
 
@@ -366,4 +368,4 @@ bun lint      # Must pass
 
 ---
 
-Built with Bun, TypeScript, and Claude.
+Built with Bun, TypeScript, and Claude. Inspired by [OpenClaw](https://github.com/openclaw/openclaw).
