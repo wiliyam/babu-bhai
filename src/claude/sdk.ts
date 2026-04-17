@@ -51,6 +51,7 @@ export class ClaudeSDK {
         "--verbose",
         "--output-format", "stream-json",
         "--max-turns", String(this.maxTurns),
+        "--dangerously-skip-permissions",
       ];
 
       // Only pass --model if explicitly set (not "default")
