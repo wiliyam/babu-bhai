@@ -15,7 +15,6 @@ export interface MessageDeps {
   audit: AuditRepository;
   approvedDirectory: string;
   systemPrompt: string;
-  cavemanMode: string;
 }
 
 // Track active requests — prevents concurrent Claude spawns per user
@@ -129,19 +128,6 @@ export function createMessageHandler(deps: MessageDeps) {
       globalActive--;
     }
   };
-}
-
-function getCavemanPrompt(mode: string): string {
-  switch (mode) {
-    case "lite":
-      return "Respond concisely. Remove filler words, maintain grammar. Code blocks unchanged.";
-    case "full":
-      return "Terse like caveman. Drop articles, fragments OK. Pattern: [thing] [action] [reason]. Code unchanged. No pleasantries.";
-    case "ultra":
-      return "Max compression. Telegraphic style. No articles, no filler, no hedging. Code/URLs/paths untouched. ACTIVE EVERY RESPONSE.";
-    default:
-      return "";
-  }
 }
 
 function splitMessage(text: string): string[] {

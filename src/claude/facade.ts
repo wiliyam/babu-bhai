@@ -5,6 +5,9 @@ import type { SessionManager } from "./session.js";
 
 const log = createChildLogger("claude");
 
+// Max recent messages to inject as conversation context
+const MAX_CONTEXT_MESSAGES = 10;
+
 export class ClaudeIntegration {
   constructor(
     private sdk: ClaudeSDK,
@@ -21,7 +24,6 @@ export class ClaudeIntegration {
       onStream?: (update: StreamUpdate) => void;
     } = {},
   ): Promise<ClaudeResponse> {
-    // Get or create session with auto-resume
     const session = await this.sessions.getOrCreate(userId, projectPath);
 
     log.info(
@@ -34,10 +36,29 @@ export class ClaudeIntegration {
       "Running command",
     );
 
+    // Build enhanced prompt with conversation context
+    let enhancedPrompt = prompt;
+    let systemPrompt = options.systemPrompt ?? "";
+
+    // If no Claude session to resume, inject recent conversation history
+    // This gives the bot "memory" even when sessions expire
+    if (!session.claudeSessionId) {
+      const recentMessages = this.messages.findBySession(session.id, MAX_CONTEXT_MESSAGES);
+      if (recentMessages.length > 0) {
+        const history = recentMessages
+          .reverse()
+          .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.slice(0, 500)}`)
+          .join("\n\n");
+
+        systemPrompt += `\n\n## Recent Conversation History\n\nThis is your recent conversation with this user. Use it for context:\n\n${history}`;
+        log.debug({ messageCount: recentMessages.length }, "Injected conversation history");
+      }
+    }
+
     // Execute via SDK with session resume
     let response = await this.sdk.execute(prompt, projectPath, {
       sessionId: session.claudeSessionId ?? undefined,
-      systemPrompt: options.systemPrompt,
+      systemPrompt,
       onStream: options.onStream,
     });
 
@@ -47,25 +68,35 @@ export class ClaudeIntegration {
       this.sessions.resetSession(userId, projectPath);
       const freshSession = await this.sessions.getOrCreate(userId, projectPath);
 
+      // Inject conversation history for context
+      const recentMessages = this.messages.findBySession(session.id, MAX_CONTEXT_MESSAGES);
+      if (recentMessages.length > 0) {
+        const history = recentMessages
+          .reverse()
+          .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.slice(0, 500)}`)
+          .join("\n\n");
+
+        systemPrompt = (options.systemPrompt ?? "") +
+          `\n\n## Recent Conversation History\n\n${history}`;
+      }
+
       response = await this.sdk.execute(prompt, projectPath, {
-        systemPrompt: options.systemPrompt,
+        systemPrompt,
         onStream: options.onStream,
       });
 
-      // Store new session ID
       if (response.sessionId) {
         this.sessions.assignClaudeSession(freshSession.id, response.sessionId);
       }
       this.sessions.recordTurn(freshSession.id, response.cost);
     } else {
-      // Store/update session ID
       if (response.sessionId && response.sessionId !== session.claudeSessionId) {
         this.sessions.assignClaudeSession(session.id, response.sessionId);
       }
       this.sessions.recordTurn(session.id, response.cost);
     }
 
-    // Store messages
+    // Store messages for future context injection
     this.messages.create({
       sessionId: session.id,
       userId,

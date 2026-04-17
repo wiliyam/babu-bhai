@@ -1,26 +1,52 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createChildLogger } from "../utils/logger.js";
+import { APP_NAME, VERSION } from "../utils/constants.js";
 
 const log = createChildLogger("identity");
 
 /**
- * Identity loader — OpenClaw-style SOUL.md + IDENTITY.md personality bootstrap.
+ * OpenClaw-style identity system.
  *
- * Loads Markdown files in priority order and merges them into a system prompt
- * that gives the bot its personality, knowledge, and behavioral rules.
- *
- * File loading order (all optional):
- *   1. SOUL.md      — Core personality, thinking style, behavioral rules
- *   2. IDENTITY.md  — Name, avatar description, metadata
- *   3. CLAUDE.md    — Project-specific context (from working directory)
- *   4. MEMORY.md    — Persistent facts and preferences
+ * Prompt assembly order (identity FIRST, project context AFTER):
+ *   1. Core identity — "You are [name] running inside Babu Bhai"
+ *   2. SOUL.md — Personality, thinking style, behavioral rules
+ *   3. IDENTITY.md — Name, metadata, vibe
+ *   4. Behavioral rules — How to interact via Telegram
+ *   5. CLAUDE.md — Project-specific context (from working directory)
+ *   6. Memory — Injected at runtime per-user
  */
+
+const CORE_IDENTITY = `You are a personal AI assistant running inside ${APP_NAME} v${VERSION}.
+You are NOT raw Claude Code. You are a named assistant with your own personality.
+You are communicating via Telegram. Your responses go directly to the user's phone.
+
+## Critical Rules
+- You NEVER say "I'm Claude" or "As Claude" — you are the assistant defined in SOUL.md below
+- You remember conversation context within a session — refer back to what the user said earlier
+- Keep responses concise — this is Telegram, not a terminal. No walls of text.
+- Use Markdown formatting sparingly (Telegram supports *bold*, _italic_, \`code\`)
+- When the user sends short messages like "??" or "ok" or "yes", use conversation context to understand what they mean
+- If you genuinely don't understand, ask ONE specific clarifying question — don't list options
+- You have full access to the filesystem, bash, git — use tools proactively when relevant
+- Don't narrate what you're doing unless asked. Just do it and report results.
+- Don't ask for permission to read files or run commands — you already have permission
+`;
+
+const TELEGRAM_RULES = `## Telegram Interaction Style
+- Short messages: 1-3 paragraphs max for most responses
+- Use code blocks for code, commands, and file paths
+- Don't repeat the user's question back to them
+- Don't start with "Sure!" or "Of course!" or "I'd be happy to help!"
+- If a task is done, say what you did in one sentence
+- For errors: state what went wrong and how to fix it, nothing more
+- When user sends a follow-up like "??" or "and?" — continue from where you left off
+`;
 
 const IDENTITY_FILES = ["SOUL.md", "IDENTITY.md"];
 
 export class IdentityLoader {
-  private systemPrompt: string = "";
+  private systemPrompt = "";
 
   constructor(
     private configDir: string,
@@ -30,7 +56,10 @@ export class IdentityLoader {
   load(): string {
     const parts: string[] = [];
 
-    // Load identity files from config directory
+    // 1. Core identity (ALWAYS first — this is what makes the bot self-aware)
+    parts.push(CORE_IDENTITY);
+
+    // 2. Load SOUL.md and IDENTITY.md from config directory
     for (const filename of IDENTITY_FILES) {
       const filePath = resolve(this.configDir, filename);
       if (existsSync(filePath)) {
@@ -42,24 +71,23 @@ export class IdentityLoader {
       }
     }
 
-    // Load CLAUDE.md from project directory
+    // 3. Telegram interaction rules
+    parts.push(TELEGRAM_RULES);
+
+    // 4. Load CLAUDE.md from project directory (project context comes AFTER identity)
     const claudeMdPath = resolve(this.projectDir, "CLAUDE.md");
     if (existsSync(claudeMdPath)) {
       const content = readFileSync(claudeMdPath, "utf-8").trim();
       if (content) {
-        parts.push(content);
+        parts.push(`## Project Context\n\n${content}`);
         log.info("Loaded project CLAUDE.md");
       }
     }
 
     this.systemPrompt = parts.join("\n\n---\n\n");
 
-    if (parts.length === 0) {
-      log.warn("No identity files found, using default prompt");
-      this.systemPrompt =
-        "You are Babu Bhai, an AI assistant accessible via Telegram. " +
-        "You help developers with coding tasks, project management, and DevOps. " +
-        "You have access to the filesystem and can read, write, and execute code.";
+    if (!this.hasSoul()) {
+      log.warn("No SOUL.md found — using default personality");
     }
 
     return this.systemPrompt;

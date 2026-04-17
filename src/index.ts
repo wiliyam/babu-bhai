@@ -99,7 +99,6 @@ async function main() {
     users,
     audit,
     systemPrompt,
-    cavemanMode: settings.cavemanMode,
     identityLoader: identity,
   });
 

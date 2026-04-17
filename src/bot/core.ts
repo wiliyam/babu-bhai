@@ -27,7 +27,6 @@ export interface BotDeps {
   users: UserRepository;
   audit: AuditRepository;
   systemPrompt: string;
-  cavemanMode: string;
   identityLoader: IdentityLoader;
 }
 
@@ -94,7 +93,6 @@ export function createBot(deps: BotDeps): Bot {
     audit: deps.audit,
     approvedDirectory: deps.settings.approvedDirectory,
     systemPrompt: deps.systemPrompt,
-    cavemanMode: deps.cavemanMode,
   };
   const messageHandler = createMessageHandler(messageDeps);
 
