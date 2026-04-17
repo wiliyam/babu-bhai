@@ -15,6 +15,7 @@ export function loadSettings(): Settings {
     telegramBotUsername: process.env.TELEGRAM_BOT_USERNAME,
     approvedDirectory: process.env.APPROVED_DIRECTORY,
     allowedUsers: process.env.ALLOWED_USERS,
+    cavemanMode: process.env.CAVEMAN_MODE,
     claudeModel: process.env.CLAUDE_MODEL,
     claudeMaxTurns: process.env.CLAUDE_MAX_TURNS,
     claudeTimeoutSeconds: process.env.CLAUDE_TIMEOUT_SECONDS,

@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { Context } from "grammy";
 import type { ClaudeIntegration } from "../../claude/facade.js";
 import type { MemoryStore } from "../../memory/store.js";
@@ -60,7 +61,7 @@ export function registerCommands(deps: CommandDeps) {
         `*Session Status*\n\n` +
           `User: ${ctx.from?.username ?? userId}\n` +
           `Total cost: $${user?.totalCost.toFixed(4) ?? "0.00"}\n` +
-          `Project: \`${deps.approvedDirectory}\``,
+          `Project: \`${basename(deps.approvedDirectory) || "/"}\``,
         { parse_mode: "Markdown" },
       );
     },

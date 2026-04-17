@@ -5,14 +5,17 @@ export const settingsSchema = z.object({
   telegramBotToken: z.string().min(1),
   telegramBotUsername: z.string().min(1),
 
-  // Directory
-  approvedDirectory: z.string().min(1).default("/"),
+  // Directory — NO default, must be explicitly set
+  approvedDirectory: z.string().min(1),
 
-  // Auth
+  // Auth — REQUIRED, no open-to-all default
   allowedUsers: z
     .string()
-    .default("")
-    .transform((v) => (v ? v.split(",").map((id) => Number(id.trim())) : [])),
+    .min(1, "ALLOWED_USERS is required. Set at least one Telegram user ID.")
+    .transform((v) => v.split(",").map((id) => Number(id.trim())).filter((id) => !Number.isNaN(id) && id > 0)),
+
+  // Caveman mode for token savings
+  cavemanMode: z.enum(["off", "lite", "full", "ultra"]).default("full"),
 
   // Claude
   claudeModel: z.string().default("claude-sonnet-4-6"),
@@ -27,7 +30,7 @@ export const settingsSchema = z.object({
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
   // Rate limiting
-  rateLimitRequests: z.coerce.number().default(100),
+  rateLimitRequests: z.coerce.number().default(10),
   rateLimitWindowMs: z.coerce.number().default(60_000),
 
   // Scheduler

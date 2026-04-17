@@ -1,3 +1,4 @@
+import { isValidSessionId, truncateSystemPrompt } from "../security/validator.js";
 import { createChildLogger } from "../utils/logger.js";
 
 const log = createChildLogger("claude-sdk");
@@ -52,12 +53,14 @@ export class ClaudeSDK {
         "--model", this.model,
       ];
 
-      if (options.sessionId) {
+      // SECURITY: Validate session ID format before passing to CLI
+      if (options.sessionId && isValidSessionId(options.sessionId)) {
         args.push("--resume", options.sessionId);
       }
 
+      // SECURITY: Truncate system prompt to prevent ARG_MAX overflow
       if (options.systemPrompt) {
-        args.push("--system-prompt", options.systemPrompt);
+        args.push("--system-prompt", truncateSystemPrompt(options.systemPrompt));
       }
 
       args.push("--", prompt);

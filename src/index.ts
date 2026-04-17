@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadSettings } from "./config/loader.js";
 import { createChildLogger } from "./utils/logger.js";
@@ -23,16 +24,27 @@ import { createBot } from "./bot/core.js";
 const log = createChildLogger("main");
 
 async function main() {
+  // Check if setup is needed
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) {
+    log.info("No .env found. Running setup wizard...");
+    const { runSetupWizard } = await import("./setup/wizard.js");
+    await runSetupWizard();
+    return;
+  }
+
   log.info({ name: APP_NAME, version: VERSION }, "Starting...");
 
   // 1. Load config
   const settings = loadSettings();
+  // SECURITY: Log only safe fields, never tokens
   log.info(
     {
       agenticMode: settings.agenticMode,
-      approvedDir: settings.approvedDirectory,
       model: settings.claudeModel,
       memory: settings.enableMemory,
+      caveman: settings.cavemanMode,
+      users: settings.allowedUsers.length,
     },
     "Configuration loaded",
   );
@@ -71,7 +83,7 @@ async function main() {
   if (settings.enableMemory) {
     const memoryDir = resolve(settings.approvedDirectory, ".babu-bhai", "memory");
     memory = new MemoryStore(memoryDir, memoryRepo);
-    log.info({ memoryDir }, "Memory system enabled");
+    log.info("Memory system enabled");
   }
 
   // 7. Event bus
@@ -87,6 +99,7 @@ async function main() {
     users,
     audit,
     systemPrompt,
+    cavemanMode: settings.cavemanMode,
   });
 
   // 9. Graceful shutdown
@@ -115,6 +128,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  log.fatal({ error }, "Fatal error");
+  log.fatal({ error: error instanceof Error ? error.message : error }, "Fatal error");
   process.exit(1);
 });

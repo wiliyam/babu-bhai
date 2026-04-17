@@ -16,10 +16,10 @@ export class AuthManager {
   }
 
   authenticate(userId: number): boolean {
-    // No whitelist = allow all (dev mode)
+    // SECURITY: Never allow open access. ALLOWED_USERS is required.
     if (this.allowedUsers.size === 0) {
-      this.createSession(userId);
-      return true;
+      log.error("No allowed users configured. Denying all access.");
+      return false;
     }
 
     if (this.allowedUsers.has(userId)) {

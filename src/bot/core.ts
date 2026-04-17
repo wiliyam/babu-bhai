@@ -20,6 +20,7 @@ export interface BotDeps {
   users: UserRepository;
   audit: AuditRepository;
   systemPrompt: string;
+  cavemanMode: string;
 }
 
 export function createBot(deps: BotDeps): Bot {
@@ -59,6 +60,7 @@ export function createBot(deps: BotDeps): Bot {
     audit: deps.audit,
     approvedDirectory: deps.settings.approvedDirectory,
     systemPrompt: deps.systemPrompt,
+    cavemanMode: deps.cavemanMode,
   };
   bot.on("message:text", createMessageHandler(messageDeps));
 

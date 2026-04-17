@@ -2,6 +2,7 @@ import type { Context } from "grammy";
 import type { ClaudeIntegration } from "../../claude/facade.js";
 import type { MemoryStore } from "../../memory/store.js";
 import type { AuditRepository, UserRepository } from "../../storage/repositories.js";
+import { SecurityValidator, truncateSystemPrompt } from "../../security/validator.js";
 import { TOOL_ICONS } from "../../utils/constants.js";
 import { createChildLogger } from "../../utils/logger.js";
 
@@ -14,12 +15,19 @@ export interface MessageDeps {
   audit: AuditRepository;
   approvedDirectory: string;
   systemPrompt: string;
+  cavemanMode: string;
 }
 
-// Track active requests for typing indicator
+// Track active requests — prevents concurrent Claude spawns per user
 const activeRequests = new Set<number>();
 
+// Max concurrent Claude processes globally
+const MAX_GLOBAL_CONCURRENT = 5;
+let globalActive = 0;
+
 export function createMessageHandler(deps: MessageDeps) {
+  const validator = new SecurityValidator(deps.approvedDirectory);
+
   return async (ctx: Context): Promise<void> => {
     const userId = ctx.from?.id;
     const chatId = ctx.chat?.id;
@@ -29,6 +37,13 @@ export function createMessageHandler(deps: MessageDeps) {
 
     // Skip commands
     if (text.startsWith("/")) return;
+
+    // SECURITY: Validate input length
+    const inputCheck = validator.validateInput(text);
+    if (!inputCheck.valid) {
+      await ctx.reply(inputCheck.reason ?? "Message rejected.");
+      return;
+    }
 
     // Track user
     deps.users.upsert(userId, ctx.from?.username ?? null);
@@ -40,20 +55,33 @@ export function createMessageHandler(deps: MessageDeps) {
       return;
     }
 
-    activeRequests.add(userId);
+    // Global concurrency cap
+    if (globalActive >= MAX_GLOBAL_CONCURRENT) {
+      await ctx.reply("Server is busy. Please try again in a moment.");
+      return;
+    }
 
-    // Send typing indicator (refreshes every 4s)
+    activeRequests.add(userId);
+    globalActive++;
+
+    // Typing indicator
     const typingInterval = setInterval(() => {
       ctx.api.sendChatAction(chatId, "typing").catch(() => {});
     }, 4000);
     await ctx.api.sendChatAction(chatId, "typing").catch(() => {});
 
     try {
-      // Build system prompt with memory context
+      // Build system prompt with memory context (capped for safety)
       let prompt = deps.systemPrompt;
+
+      // Inject Caveman mode instructions
+      if (deps.cavemanMode !== "off") {
+        prompt += `\n\n---\n\n${getCavemanPrompt(deps.cavemanMode)}`;
+      }
+
       if (deps.memory) {
-        const memoryContent = deps.memory.loadMemoryFile();
-        const dailyNote = deps.memory.getDailyNote();
+        const memoryContent = deps.memory.loadMemoryFile(userId);
+        const dailyNote = deps.memory.getDailyNote(userId);
         if (memoryContent) {
           prompt += `\n\n---\n\n# Memory\n${memoryContent}`;
         }
@@ -61,6 +89,9 @@ export function createMessageHandler(deps: MessageDeps) {
           prompt += `\n\n---\n\n# Today's Notes\n${dailyNote}`;
         }
       }
+
+      // SECURITY: Cap system prompt size
+      prompt = truncateSystemPrompt(prompt);
 
       // Execute via Claude
       const toolUpdates: string[] = [];
@@ -77,47 +108,54 @@ export function createMessageHandler(deps: MessageDeps) {
       // Format response
       let reply = response.content;
 
-      // Add tool usage footer if verbose
       if (toolUpdates.length > 0) {
         reply += `\n\n_Tools: ${toolUpdates.join(", ")}_`;
       }
 
-      // Add cost footer
       if (response.cost > 0) {
         reply += `\n_Cost: $${response.cost.toFixed(4)} | ${response.durationMs}ms_`;
       }
 
-      // Send response (handle long messages)
-      if (reply.length > 4096) {
-        const chunks = splitMessage(reply);
-        for (const chunk of chunks) {
-          await ctx.reply(chunk, { parse_mode: "Markdown" }).catch(() =>
-            // Fallback to plain text if Markdown fails
-            ctx.reply(chunk),
-          );
-        }
-      } else {
-        await ctx.reply(reply, { parse_mode: "Markdown" }).catch(() =>
-          ctx.reply(reply),
+      // Send response
+      const chunks = splitMessage(reply);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: "Markdown" }).catch(() =>
+          ctx.reply(chunk),
         );
       }
 
-      // Auto-extract memories from conversation
+      // Auto-extract memories from conversation (user-scoped)
       if (deps.memory && !response.isError) {
-        extractAndStoreMemory(deps.memory, userId, text, response.content);
+        extractAndStoreMemory(deps.memory, userId, text);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      log.error({ userId, error: message }, "Message handling failed");
-      await ctx.reply(`Error: ${message}`);
+      // SECURITY: Never leak internal errors to Telegram users
+      log.error({ userId, error: error instanceof Error ? error.message : error }, "Message handling failed");
+      await ctx.reply("Something went wrong. Please try again.");
     } finally {
       clearInterval(typingInterval);
       activeRequests.delete(userId);
+      globalActive--;
     }
   };
 }
 
+function getCavemanPrompt(mode: string): string {
+  switch (mode) {
+    case "lite":
+      return "Respond concisely. Remove filler words, maintain grammar. Code blocks unchanged.";
+    case "full":
+      return "Terse like caveman. Drop articles, fragments OK. Pattern: [thing] [action] [reason]. Code unchanged. No pleasantries.";
+    case "ultra":
+      return "Max compression. Telegraphic style. No articles, no filler, no hedging. Code/URLs/paths untouched. ACTIVE EVERY RESPONSE.";
+    default:
+      return "";
+  }
+}
+
 function splitMessage(text: string): string[] {
+  if (text.length <= 4096) return [text];
+
   const chunks: string[] = [];
   let remaining = text;
 
@@ -138,16 +176,13 @@ function splitMessage(text: string): string[] {
 }
 
 /**
- * Auto-extract important info from conversations into memory.
- * Looks for explicit "remember" patterns and key decisions.
+ * Auto-extract "remember that..." patterns from user messages.
  */
 function extractAndStoreMemory(
   memory: MemoryStore,
   userId: number,
   userMessage: string,
-  response: string,
 ): void {
-  // Check if user explicitly asked to remember something
   const rememberPatterns = [
     /remember that (.+)/i,
     /note that (.+)/i,
