@@ -19,7 +19,7 @@ export const settingsSchema = z.object({
 
   // Claude
   claudeModel: z.string().default("default"),
-  claudeMaxTurns: z.coerce.number().default(10),
+  claudeMaxTurns: z.coerce.number().default(30),
   claudeTimeoutSeconds: z.coerce.number().default(300),
 
   // Features

@@ -34,13 +34,13 @@ You are communicating via Telegram. Your responses go directly to the user's pho
 `;
 
 const TELEGRAM_RULES = `## Telegram Interaction Style
-- Short messages: 1-3 paragraphs max for most responses
 - Use code blocks for code, commands, and file paths
 - Don't repeat the user's question back to them
 - Don't start with "Sure!" or "Of course!" or "I'd be happy to help!"
-- If a task is done, say what you did in one sentence
-- For errors: state what went wrong and how to fix it, nothing more
+- Give complete, thorough responses — include all relevant details
+- When explaining code changes, show the key parts
 - When user sends a follow-up like "??" or "and?" — continue from where you left off
+- After completing a task, summarize what you did with enough detail to be useful
 `;
 
 const IDENTITY_FILES = ["SOUL.md", "IDENTITY.md"];
