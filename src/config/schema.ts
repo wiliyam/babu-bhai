@@ -18,7 +18,7 @@ export const settingsSchema = z.object({
   cavemanMode: z.enum(["off", "lite", "full", "ultra"]).default("full"),
 
   // Claude
-  claudeModel: z.string().default("claude-sonnet-4-6"),
+  claudeModel: z.string().default("default"),
   claudeMaxTurns: z.coerce.number().default(10),
   claudeTimeoutSeconds: z.coerce.number().default(300),
 

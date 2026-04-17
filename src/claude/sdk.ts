@@ -50,8 +50,12 @@ export class ClaudeSDK {
         "--print",
         "--output-format", "stream-json",
         "--max-turns", String(this.maxTurns),
-        "--model", this.model,
       ];
+
+      // Only pass --model if explicitly set (not "default")
+      if (this.model && this.model !== "default") {
+        args.push("--model", this.model);
+      }
 
       // SECURITY: Validate session ID format before passing to CLI
       if (options.sessionId && isValidSessionId(options.sessionId)) {
