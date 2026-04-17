@@ -26,6 +26,9 @@ export function loadSettings(): Settings {
     enableScheduler: process.env.ENABLE_SCHEDULER,
     enableMemory: process.env.ENABLE_MEMORY,
     memoryDir: process.env.MEMORY_DIR,
+    groqApiKey: process.env.GROQ_API_KEY,
+    voiceEnabled: process.env.VOICE_ENABLED,
+    ttsVoice: process.env.TTS_VOICE,
     soulPath: process.env.SOUL_PATH,
     identityPath: process.env.IDENTITY_PATH,
   };

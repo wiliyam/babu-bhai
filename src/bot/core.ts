@@ -3,12 +3,15 @@ import type { Settings } from "../config/schema.js";
 import type { ClaudeIntegration } from "../claude/facade.js";
 import type { IdentityLoader } from "../identity/loader.js";
 import type { MemoryStore } from "../memory/store.js";
+import type { SpeechToText } from "../voice/stt.js";
+import type { TextToSpeech } from "../voice/tts.js";
 import type { AuditRepository, UserRepository } from "../storage/repositories.js";
 import { createChildLogger } from "../utils/logger.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { type CommandDeps, registerCommands } from "./handlers/command.js";
 import { type MessageDeps, createMessageHandler } from "./handlers/message.js";
+import { type VoiceDeps, createVoiceHandler } from "./handlers/voice.js";
 import {
   type OnboardingDeps,
   createOnboardingHandlers,
@@ -28,6 +31,8 @@ export interface BotDeps {
   audit: AuditRepository;
   systemPrompt: string;
   identityLoader: IdentityLoader;
+  stt: SpeechToText | null;
+  tts: TextToSpeech | null;
 }
 
 export function createBot(deps: BotDeps): Bot {
@@ -42,7 +47,7 @@ export function createBot(deps: BotDeps): Bot {
     ),
   );
 
-  // Onboarding handlers
+  // Onboarding
   const onboardingDeps: OnboardingDeps = {
     users: deps.users,
     audit: deps.audit,
@@ -50,7 +55,7 @@ export function createBot(deps: BotDeps): Bot {
   };
   const onboarding = createOnboardingHandlers(onboardingDeps);
 
-  // Register commands
+  // Commands
   const commandDeps: CommandDeps = {
     claude: deps.claude,
     memory: deps.memory,
@@ -60,14 +65,10 @@ export function createBot(deps: BotDeps): Bot {
   };
   const commands = registerCommands(commandDeps);
 
-  // /start triggers onboarding for new users, welcome for existing
   bot.command("start", async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;
-
-    if (isNewUser(onboardingDeps, userId)) {
-      return onboarding.startOnboarding(ctx);
-    }
+    if (isNewUser(onboardingDeps, userId)) return onboarding.startOnboarding(ctx);
     return commands.start(ctx);
   });
 
@@ -76,16 +77,30 @@ export function createBot(deps: BotDeps): Bot {
   bot.command("memory", commands.memory);
   bot.command("remember", commands.remember);
   bot.command("help", commands.help);
+  bot.command("personality", async (ctx) => onboarding.startOnboarding(ctx));
 
-  // /personality — re-trigger personality picker anytime
-  bot.command("personality", async (ctx) => {
-    return onboarding.startOnboarding(ctx);
-  });
-
-  // Handle personality selection callbacks
+  // Personality callback
   bot.callbackQuery(/^persona:/, onboarding.handlePersonalityCallback);
 
-  // Message handler — check onboarding first
+  // Voice handler
+  if (deps.stt) {
+    const voiceDeps: VoiceDeps = {
+      stt: deps.stt,
+      tts: deps.tts,
+      claude: deps.claude,
+      memory: deps.memory,
+      users: deps.users,
+      audit: deps.audit,
+      approvedDirectory: deps.settings.approvedDirectory,
+      systemPrompt: deps.systemPrompt,
+    };
+    const voiceHandler = createVoiceHandler(voiceDeps);
+    bot.on("message:voice", voiceHandler);
+    bot.on("message:audio", voiceHandler);
+    log.info("Voice handler registered");
+  }
+
+  // Text message handler
   const messageDeps: MessageDeps = {
     claude: deps.claude,
     memory: deps.memory,
@@ -100,39 +115,33 @@ export function createBot(deps: BotDeps): Bot {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    // If user is in onboarding flow, handle that first
     if (isInOnboarding(userId)) {
       const handled = await onboarding.handleOnboardingText(ctx);
       if (handled) return;
     }
 
-    // First-time user who didn't /start — trigger onboarding
     if (isNewUser(onboardingDeps, userId) && !ctx.message?.text?.startsWith("/")) {
       return onboarding.startOnboarding(ctx);
     }
 
-    // Normal message handling
     return messageHandler(ctx);
   });
 
-  // Set bot commands menu
-  bot.api
-    .setMyCommands([
-      { command: "start", description: "Welcome / setup" },
-      { command: "new", description: "Start fresh session" },
-      { command: "status", description: "Session info & cost" },
-      { command: "memory", description: "Search or list memories" },
-      { command: "remember", description: "Save to memory" },
-      { command: "personality", description: "Change bot personality" },
-      { command: "help", description: "All commands" },
-    ])
-    .catch((e) => log.warn({ error: e }, "Failed to set bot commands"));
+  // Bot commands menu
+  bot.api.setMyCommands([
+    { command: "start", description: "Welcome / setup" },
+    { command: "new", description: "Start fresh session" },
+    { command: "status", description: "Session info & cost" },
+    { command: "memory", description: "Search or list memories" },
+    { command: "remember", description: "Save to memory" },
+    { command: "personality", description: "Change bot personality" },
+    { command: "help", description: "All commands" },
+  ]).catch((e) => log.warn({ error: e }, "Failed to set bot commands"));
 
-  // Error handler
   bot.catch((err) => {
     log.error({ error: err.message }, "Bot error");
   });
 
-  log.info("Bot created with middleware chain + onboarding");
+  log.info("Bot created with middleware + onboarding + voice");
   return bot;
 }

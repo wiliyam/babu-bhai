@@ -19,6 +19,9 @@ import { ClaudeIntegration } from "./claude/facade.js";
 import { IdentityLoader } from "./identity/loader.js";
 import { MemoryStore } from "./memory/store.js";
 import { EventBus } from "./events/bus.js";
+import { SpeechToText } from "./voice/stt.js";
+import { TextToSpeech } from "./voice/tts.js";
+import { Scheduler } from "./scheduler/runner.js";
 import { createBot } from "./bot/core.js";
 
 const log = createChildLogger("main");
@@ -37,34 +40,33 @@ async function main() {
 
   // 1. Load config
   const settings = loadSettings();
-  // SECURITY: Log only safe fields, never tokens
   log.info(
     {
       agenticMode: settings.agenticMode,
       model: settings.claudeModel,
       memory: settings.enableMemory,
-      caveman: settings.cavemanMode,
+      voice: settings.voiceEnabled,
       users: settings.allowedUsers.length,
     },
     "Configuration loaded",
   );
 
-  // 2. Initialize database
+  // 2. Database
   const dbPath = resolve(settings.approvedDirectory, ".babu-bhai", "data.db");
   const db = new DatabaseManager(dbPath);
   db.initialize();
 
-  // Repositories
   const users = new UserRepository(db.raw);
   const sessions = new SessionRepository(db.raw);
   const messages = new MessageRepository(db.raw);
   const memoryRepo = new MemoryRepository(db.raw);
   const audit = new AuditRepository(db.raw);
+  const jobRepo = new JobRepository(db.raw);
 
   // 3. Auth
   const auth = new AuthManager(settings.allowedUsers);
 
-  // 4. Claude integration
+  // 4. Claude
   const claudeSdk = new ClaudeSDK(
     settings.claudeModel,
     settings.claudeMaxTurns,
@@ -78,19 +80,33 @@ async function main() {
   const identity = new IdentityLoader(configDir, settings.approvedDirectory);
   const systemPrompt = identity.load();
 
-  // 6. Memory (optional)
+  // 6. Memory
   let memory: MemoryStore | null = null;
   if (settings.enableMemory) {
     const memoryDir = resolve(settings.approvedDirectory, ".babu-bhai", "memory");
     memory = new MemoryStore(memoryDir, memoryRepo);
-    log.info("Memory system enabled");
+    log.info("Memory enabled");
   }
 
-  // 7. Event bus
+  // 7. Voice (STT + TTS)
+  let stt: SpeechToText | null = null;
+  let tts: TextToSpeech | null = null;
+
+  if (settings.voiceEnabled) {
+    stt = new SpeechToText(settings.groqApiKey);
+    if (stt.enabled) {
+      tts = new TextToSpeech(settings.ttsVoice);
+      log.info("Voice enabled (STT: Groq Whisper, TTS: Edge)");
+    } else {
+      log.info("Voice partially enabled (no GROQ_API_KEY — STT disabled, TTS available)");
+    }
+  }
+
+  // 8. Event bus
   const eventBus = new EventBus();
   eventBus.start();
 
-  // 8. Create bot
+  // 9. Create bot
   const bot = createBot({
     settings,
     auth,
@@ -100,11 +116,29 @@ async function main() {
     audit,
     systemPrompt,
     identityLoader: identity,
+    stt,
+    tts,
   });
 
-  // 9. Graceful shutdown
+  // 10. Scheduler
+  let scheduler: Scheduler | null = null;
+  if (settings.enableScheduler) {
+    scheduler = new Scheduler({
+      jobs: jobRepo,
+      audit,
+      claude,
+      bot,
+      approvedDirectory: settings.approvedDirectory,
+      systemPrompt,
+    });
+    scheduler.start();
+    log.info("Scheduler enabled");
+  }
+
+  // 11. Graceful shutdown
   const shutdown = async () => {
     log.info("Shutting down...");
+    scheduler?.stop();
     eventBus.stop();
     await bot.stop();
     db.close();
@@ -115,8 +149,8 @@ async function main() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  // 10. Start bot
-  log.info("Bot starting in polling mode...");
+  // 12. Start
+  log.info("Bot starting...");
   await bot.start({
     onStart: () => {
       log.info(

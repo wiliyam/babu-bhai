@@ -46,6 +46,14 @@ export const settingsSchema = z.object({
     .transform((v) => v === "true"),
   memoryDir: z.string().default("./memory"),
 
+  // Voice
+  groqApiKey: z.string().optional(),
+  voiceEnabled: z
+    .string()
+    .default("true")
+    .transform((v) => v === "true"),
+  ttsVoice: z.string().default("en-US-AndrewNeural"),
+
   // Identity
   soulPath: z.string().optional(),
   identityPath: z.string().optional(),
