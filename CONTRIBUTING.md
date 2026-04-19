@@ -1,4 +1,4 @@
-# Contributing to Babu Bhai
+# Contributing to Soulcast
 
 Thank you for your interest in contributing! This guide will help you get started.
 
@@ -34,8 +34,8 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 ```bash
 # Fork on GitHub, then:
-git clone https://github.com/YOUR_USERNAME/babu-bhai.git
-cd babu-bhai
+git clone https://github.com/YOUR_USERNAME/soulcast.git
+cd soulcast
 bun install
 ```
 
@@ -252,7 +252,7 @@ Telegram → grammY Bot → Middleware Chain → Handler → Claude SDK → Resp
 
 ### Bug Reports
 
-Use the [bug report template](https://github.com/wiliyam/babu-bhai/issues/new?labels=bug):
+Use the [bug report template](https://github.com/wiliyam/soulcast/issues/new?labels=bug):
 
 - **Expected behavior** — What should happen
 - **Actual behavior** — What actually happens
@@ -261,7 +261,7 @@ Use the [bug report template](https://github.com/wiliyam/babu-bhai/issues/new?la
 
 ### Feature Requests
 
-Use the [feature request template](https://github.com/wiliyam/babu-bhai/issues/new?labels=enhancement):
+Use the [feature request template](https://github.com/wiliyam/soulcast/issues/new?labels=enhancement):
 
 - **Problem** — What problem does this solve?
 - **Proposed solution** — How should it work?
@@ -279,4 +279,4 @@ By contributing, you agree that your contributions will be licensed under the [M
 
 ---
 
-Thank you for helping make Babu Bhai better!
+Thank you for helping make Soulcast better!

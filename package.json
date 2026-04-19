@@ -1,7 +1,7 @@
 {
-  "name": "babu-bhai",
+  "name": "soulcast",
   "version": "0.1.0",
-  "description": "Babu Bhai — Open-source AI agent gateway for Telegram. Built with Bun + TypeScript.",
+  "description": "Soulcast — Open-source AI agent gateway for Telegram. Built with Bun + TypeScript.",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -32,7 +32,7 @@
   "author": "wiliyam",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wiliyam/babu-bhai.git"
+    "url": "https://github.com/wiliyam/soulcast.git"
   },
   "keywords": [
     "telegram",

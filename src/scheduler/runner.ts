@@ -17,7 +17,6 @@ export interface SchedulerDeps {
   jobs: JobRepository;
   audit: AuditRepository;
   claude: ClaudeIntegration;
-  bot: Bot;
   approvedDirectory: string;
   systemPrompt: string;
 }
@@ -33,10 +32,13 @@ export interface CreateJobInput {
 
 export class Scheduler {
   private crons = new Map<string, Cron>();
+  private bot: Bot | null = null;
 
   constructor(private deps: SchedulerDeps) {}
 
-  start(): void {
+  /** Attach bot and start all active jobs. Call after bot construction. */
+  start(bot: Bot): void {
+    this.bot = bot;
     const active = this.deps.jobs.findActive();
     for (const job of active) {
       this.register(job);
@@ -126,8 +128,8 @@ export class Scheduler {
       const chunks = chunkText(header + body, TELEGRAM_MAX_MESSAGE_LENGTH);
 
       for (const chunk of chunks) {
-        await this.deps.bot.api.sendMessage(job.chatId, chunk, { parse_mode: "Markdown" })
-          .catch(() => this.deps.bot.api.sendMessage(job.chatId, chunk));
+        await this.bot?.api.sendMessage(job.chatId, chunk, { parse_mode: "Markdown" })
+          .catch(() => this.bot?.api.sendMessage(job.chatId, chunk));
       }
 
       this.deps.jobs.updateLastRun(job.id);
@@ -135,7 +137,7 @@ export class Scheduler {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.error({ id: job.id, error: msg }, "Job failed");
-      await this.deps.bot.api.sendMessage(
+      await this.bot?.api.sendMessage(
         job.chatId,
         `🕒 *${escMd(job.name)}* failed\n\n${msg.slice(0, 500)}`,
       ).catch(() => {});

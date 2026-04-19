@@ -1,5 +1,5 @@
 export const VERSION = "0.1.0";
-export const APP_NAME = "Babu Bhai";
+export const APP_NAME = "Soulcast";
 
 // Telegram limits
 export const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;

@@ -11,7 +11,7 @@
 **Do NOT open a public issue for security vulnerabilities.**
 
 Instead:
-1. Use [GitHub's private vulnerability reporting](https://github.com/wiliyam/babu-bhai/security/advisories/new)
+1. Use [GitHub's private vulnerability reporting](https://github.com/wiliyam/soulcast/security/advisories/new)
 2. Or email the maintainers directly
 
 ### What to Include
@@ -29,7 +29,7 @@ Instead:
 
 ## Security Model
 
-Babu Bhai implements 5-layer defense:
+Soulcast implements 5-layer defense:
 
 1. **Authentication** — Telegram user ID whitelist (required, no open access)
 2. **Input validation** — Message length limits, content sanitization

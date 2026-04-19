@@ -22,7 +22,7 @@ const log = createChildLogger("file-handler");
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB Telegram limit
 
 // Where uploaded files are saved for Claude to access
-const UPLOAD_DIR_NAME = ".babu-bhai/uploads";
+const UPLOAD_DIR_NAME = ".soulcast/uploads";
 
 export interface FileDeps {
   claude: ClaudeIntegration;

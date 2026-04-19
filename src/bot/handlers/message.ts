@@ -1,10 +1,12 @@
 import type { Context } from "grammy";
+import { InputFile } from "grammy";
 import type { ClaudeIntegration } from "../../claude/facade.js";
 import type { MemoryStore } from "../../memory/store.js";
 import type { AuditRepository, UserRepository } from "../../storage/repositories.js";
 import { SecurityValidator, truncateSystemPrompt } from "../../security/validator.js";
 import { TOOL_ICONS } from "../../utils/constants.js";
 import { createChildLogger } from "../../utils/logger.js";
+import type { TextToSpeech } from "../../voice/tts.js";
 
 const log = createChildLogger("message-handler");
 
@@ -15,6 +17,20 @@ export interface MessageDeps {
   audit: AuditRepository;
   approvedDirectory: string;
   systemPrompt: string;
+  tts?: TextToSpeech | null;
+}
+
+// Per-user toggle — when enabled, text messages also get a voice reply.
+// In-memory only; resets on restart. Good enough for MVP.
+const voiceReplyUsers = new Set<number>();
+
+export function isVoiceReplyEnabled(userId: number): boolean {
+  return voiceReplyUsers.has(userId);
+}
+
+export function setVoiceReply(userId: number, enabled: boolean): void {
+  if (enabled) voiceReplyUsers.add(userId);
+  else voiceReplyUsers.delete(userId);
 }
 
 // Track active requests — prevents concurrent Claude spawns per user
@@ -172,6 +188,35 @@ export function createMessageHandler(deps: MessageDeps) {
         );
       }
 
+      // Optional voice reply — when user toggled /voice on
+      if (
+        deps.tts &&
+        voiceReplyUsers.has(userId) &&
+        !response.isError &&
+        reply.length > 0 &&
+        reply.length < 4000
+      ) {
+        try {
+          await ctx.api.sendChatAction(chatId, "record_voice").catch(() => {});
+          const speech = stripForSpeech(reply);
+          if (speech) {
+            const tts = await deps.tts.synthesize(speech);
+            if (tts) {
+              await ctx.api.sendVoice(
+                chatId,
+                new InputFile(tts.audio, "reply.ogg"),
+                { duration: tts.durationSec },
+              );
+            }
+          }
+        } catch (err) {
+          log.warn(
+            { error: err instanceof Error ? err.message : err },
+            "Voice reply failed",
+          );
+        }
+      }
+
       // Auto-extract memories
       if (deps.memory && !response.isError) {
         extractAndStoreMemory(deps.memory, userId, text);
@@ -221,6 +266,21 @@ function splitMessage(text: string): string[] {
   }
 
   return chunks;
+}
+
+function stripForSpeech(text: string): string {
+  // Remove markdown formatting and code blocks so TTS reads cleanly
+  return text
+    .replace(/```[\s\S]*?```/g, " ... code block ... ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/#+\s*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 2000);
 }
 
 function extractAndStoreMemory(

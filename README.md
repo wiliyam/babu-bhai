@@ -1,4 +1,4 @@
-# Babu Bhai
+# Soulcast
 
 **Open-source AI agent gateway for Telegram.** Control Claude Code from your phone — with persistent memory, bot identity, and conversation continuity.
 
@@ -10,9 +10,9 @@ Built with **Bun + TypeScript**. Inspired by OpenClaw. Secure by default.
 
 ---
 
-## Why Babu Bhai?
+## Why Soulcast?
 
-Most Claude Code Telegram wrappers are either broken, Python-based, or have no identity system. Babu Bhai takes the best ideas from OpenClaw and rebuilds them in TypeScript/Bun:
+Most Claude Code Telegram wrappers are either broken, Python-based, or have no identity system. Soulcast takes the best ideas from OpenClaw and rebuilds them in TypeScript/Bun:
 
 | vs | Advantage |
 |---|---|
@@ -53,8 +53,8 @@ Most Claude Code Telegram wrappers are either broken, Python-based, or have no i
 ### Install
 
 ```bash
-git clone https://github.com/wiliyam/babu-bhai.git
-cd babu-bhai
+git clone https://github.com/wiliyam/soulcast.git
+cd soulcast
 bun install
 ```
 
@@ -142,7 +142,7 @@ You (Telegram)
 
 The system prompt is assembled in strict order — identity FIRST, project context LAST:
 
-1. **Core Identity** — "You are a personal AI assistant running inside Babu Bhai. You are NOT Claude."
+1. **Core Identity** — "You are a personal AI assistant running inside Soulcast. You are NOT Claude."
 2. **SOUL.md** — Your chosen personality
 3. **IDENTITY.md** — Name, metadata
 4. **Telegram Rules** — Keep it short, don't narrate, understand follow-ups
@@ -160,10 +160,10 @@ This ordering ensures the bot firmly identifies as your named assistant, not raw
 
 ## Bot Identity (SOUL.md)
 
-Your bot's personality lives in `.babu-bhai/` inside your project directory:
+Your bot's personality lives in `.soulcast/` inside your project directory:
 
 ```
-.babu-bhai/
+.soulcast/
   SOUL.md          # Personality, thinking style, rules
   IDENTITY.md      # Name, metadata
   data.db          # SQLite (sessions, messages, memory, audit)
@@ -228,7 +228,7 @@ Send any file to the bot — it saves it and tells Claude to analyze it.
 | **Stickers** | WebP |
 
 - Add a **caption** to tell Claude what to do: "fix the bug in this file", "summarize this PDF"
-- Files saved to `.babu-bhai/uploads/` — auto-cleaned (keeps last 20)
+- Files saved to `.soulcast/uploads/` — auto-cleaned (keeps last 20)
 - Max file size: 20MB (Telegram limit)
 
 ---
@@ -308,35 +308,35 @@ npm install -g @anthropic-ai/claude-code
 claude login
 
 # Clone and setup
-git clone https://github.com/wiliyam/babu-bhai.git
-cd babu-bhai
+git clone https://github.com/wiliyam/soulcast.git
+cd soulcast
 bun install
 bun setup
 
 # Create systemd service
-sudo tee /etc/systemd/system/babu-bhai.service << 'EOF'
+sudo tee /etc/systemd/system/soulcast.service << 'EOF'
 [Unit]
-Description=Babu Bhai AI Agent
+Description=Soulcast AI Agent
 After=network-online.target
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/babu-bhai
+WorkingDirectory=/home/ubuntu/soulcast
 ExecStart=/home/ubuntu/.bun/bin/bun run src/index.ts
 Restart=on-failure
 RestartSec=10
-EnvironmentFile=/home/ubuntu/babu-bhai/.env
+EnvironmentFile=/home/ubuntu/soulcast/.env
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl enable babu-bhai
-sudo systemctl start babu-bhai
+sudo systemctl enable soulcast
+sudo systemctl start soulcast
 
 # Check logs
-sudo journalctl -u babu-bhai -f
+sudo journalctl -u soulcast -f
 ```
 
 ---
@@ -420,8 +420,8 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for the full gu
 
 ```bash
 # Quick start
-git clone https://github.com/YOUR_USERNAME/babu-bhai.git
-cd babu-bhai
+git clone https://github.com/YOUR_USERNAME/soulcast.git
+cd soulcast
 bun install
 bun setup
 bun dev         # Auto-reload on changes
@@ -437,8 +437,8 @@ See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines.
 
 ## Community
 
-- [Issues](https://github.com/wiliyam/babu-bhai/issues) — Bug reports and feature requests
-- [Discussions](https://github.com/wiliyam/babu-bhai/discussions) — Questions and ideas
+- [Issues](https://github.com/wiliyam/soulcast/issues) — Bug reports and feature requests
+- [Discussions](https://github.com/wiliyam/soulcast/discussions) — Questions and ideas
 - [Security](SECURITY.md) — Vulnerability reporting
 
 ---

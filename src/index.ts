@@ -52,7 +52,7 @@ async function main() {
   );
 
   // 2. Database
-  const dbPath = resolve(settings.approvedDirectory, ".babu-bhai", "data.db");
+  const dbPath = resolve(settings.approvedDirectory, ".soulcast", "data.db");
   const db = new DatabaseManager(dbPath);
   db.initialize();
 
@@ -76,14 +76,14 @@ async function main() {
   const claude = new ClaudeIntegration(claudeSdk, sessionManager, messages);
 
   // 5. Identity
-  const configDir = resolve(settings.approvedDirectory, ".babu-bhai");
+  const configDir = resolve(settings.approvedDirectory, ".soulcast");
   const identity = new IdentityLoader(configDir, settings.approvedDirectory);
   const systemPrompt = identity.load();
 
   // 6. Memory
   let memory: MemoryStore | null = null;
   if (settings.enableMemory) {
-    const memoryDir = resolve(settings.approvedDirectory, ".babu-bhai", "memory");
+    const memoryDir = resolve(settings.approvedDirectory, ".soulcast", "memory");
     memory = new MemoryStore(memoryDir, memoryRepo);
     log.info("Memory enabled");
   }
@@ -106,7 +106,19 @@ async function main() {
   const eventBus = new EventBus();
   eventBus.start();
 
-  // 9. Create bot
+  // 9. Scheduler (construct before bot so commands see it; attach bot later)
+  let scheduler: Scheduler | null = null;
+  if (settings.enableScheduler) {
+    scheduler = new Scheduler({
+      jobs: jobRepo,
+      audit,
+      claude,
+      approvedDirectory: settings.approvedDirectory,
+      systemPrompt,
+    });
+  }
+
+  // 10. Create bot
   const bot = createBot({
     settings,
     auth,
@@ -118,20 +130,12 @@ async function main() {
     identityLoader: identity,
     stt,
     tts,
+    scheduler,
   });
 
-  // 10. Scheduler
-  let scheduler: Scheduler | null = null;
-  if (settings.enableScheduler) {
-    scheduler = new Scheduler({
-      jobs: jobRepo,
-      audit,
-      claude,
-      bot,
-      approvedDirectory: settings.approvedDirectory,
-      systemPrompt,
-    });
-    scheduler.start();
+  // Start scheduler with bot ref
+  if (scheduler) {
+    scheduler.start(bot);
     log.info("Scheduler enabled");
   }
 

@@ -5,6 +5,7 @@ import type { IdentityLoader } from "../identity/loader.js";
 import type { MemoryStore } from "../memory/store.js";
 import type { SpeechToText } from "../voice/stt.js";
 import type { TextToSpeech } from "../voice/tts.js";
+import type { Scheduler } from "../scheduler/runner.js";
 import type { AuditRepository, UserRepository } from "../storage/repositories.js";
 import { createChildLogger } from "../utils/logger.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
@@ -34,6 +35,7 @@ export interface BotDeps {
   identityLoader: IdentityLoader;
   stt: SpeechToText | null;
   tts: TextToSpeech | null;
+  scheduler: Scheduler | null;
 }
 
 export function createBot(deps: BotDeps): Bot {
@@ -63,6 +65,8 @@ export function createBot(deps: BotDeps): Bot {
     users: deps.users,
     audit: deps.audit,
     approvedDirectory: deps.settings.approvedDirectory,
+    scheduler: deps.scheduler,
+    ttsAvailable: deps.tts !== null,
   };
   const commands = registerCommands(commandDeps);
 
@@ -77,6 +81,10 @@ export function createBot(deps: BotDeps): Bot {
   bot.command("status", commands.status);
   bot.command("memory", commands.memory);
   bot.command("remember", commands.remember);
+  bot.command("voice", commands.voice);
+  bot.command("schedule", commands.schedule);
+  bot.command("jobs", commands.jobs);
+  bot.command("unschedule", commands.unschedule);
   bot.command("help", commands.help);
   bot.command("personality", async (ctx) => onboarding.startOnboarding(ctx));
 
@@ -125,6 +133,7 @@ export function createBot(deps: BotDeps): Bot {
     audit: deps.audit,
     approvedDirectory: deps.settings.approvedDirectory,
     systemPrompt: deps.systemPrompt,
+    tts: deps.tts,
   };
   const messageHandler = createMessageHandler(messageDeps);
 
@@ -151,6 +160,10 @@ export function createBot(deps: BotDeps): Bot {
     { command: "status", description: "Session info & cost" },
     { command: "memory", description: "Search or list memories" },
     { command: "remember", description: "Save to memory" },
+    { command: "voice", description: "Toggle voice replies for text" },
+    { command: "schedule", description: "Schedule a recurring task" },
+    { command: "jobs", description: "List scheduled jobs" },
+    { command: "unschedule", description: "Cancel a scheduled job" },
     { command: "personality", description: "Change bot personality" },
     { command: "help", description: "All commands" },
   ]).catch((e) => log.warn({ error: e }, "Failed to set bot commands"));

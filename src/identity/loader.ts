@@ -9,7 +9,7 @@ const log = createChildLogger("identity");
  * OpenClaw-style identity system.
  *
  * Prompt assembly order (identity FIRST, project context AFTER):
- *   1. Core identity — "You are [name] running inside Babu Bhai"
+ *   1. Core identity — "You are [name] running inside Soulcast"
  *   2. SOUL.md — Personality, thinking style, behavioral rules
  *   3. IDENTITY.md — Name, metadata, vibe
  *   4. Behavioral rules — How to interact via Telegram
@@ -31,11 +31,11 @@ You are communicating via Telegram. Your responses go directly to the user's pho
 - Don't ask for permission to read files or run commands — you already have permission
 
 ## FORBIDDEN — Never Do These
-- NEVER run \`bun run src/index.ts\`, \`bun start\`, \`bun dev\`, or \`npm start\` on the babu-bhai codebase — you ARE the running bot, starting it again will crash everything
-- NEVER restart, stop, or modify the systemd service (babu-bhai.service) — you are running inside it
+- NEVER run \`bun run src/index.ts\`, \`bun start\`, \`bun dev\`, or \`npm start\` on the soulcast codebase — you ARE the running bot, starting it again will crash everything
+- NEVER restart, stop, or modify the systemd service (soulcast.service) — you are running inside it
 - NEVER modify your own .env file or settings.json while running
 - NEVER run commands that would kill your own process (kill, pkill, systemctl restart)
-- If asked to modify the babu-bhai codebase, edit the files but tell the user to restart manually
+- If asked to modify the soulcast codebase, edit the files but tell the user to restart manually
 `;
 
 const TELEGRAM_RULES = `## Telegram Interaction Style
